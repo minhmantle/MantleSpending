@@ -7,7 +7,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 
-# ── Page config ──────────────────────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="KOL Spending Dashboard",
     page_icon="📊",
@@ -20,17 +20,29 @@ st.markdown("""
   [data-testid="stMetric"] { background: #1e1e2e; border-radius: 12px; padding: 16px; }
   [data-testid="stMetricLabel"] { font-size: 13px; color: #a0a0b0; }
   [data-testid="stMetricValue"] { font-size: 26px; font-weight: 700; }
-  .block-container { padding-top: 2rem; }
+  .block-container { padding-top: 1.5rem; }
   h1 { font-size: 1.8rem !important; }
+  .mnt-banner {
+    background: linear-gradient(90deg, #1e1e2e, #2a2a3e);
+    border: 1px solid #4a4a6a;
+    border-radius: 12px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .mnt-price { font-size: 22px; font-weight: 700; color: #a78bfa; }
+  .mnt-label { font-size: 13px; color: #a0a0b0; }
+  .mnt-source { font-size: 12px; color: #6b7280; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── MNT live price via CoinGecko (cache 5 min) ───────────────────────────────
+# ── MNT live price ────────────────────────────────────────────────────────────
 MNT_FALLBACK = 0.025
 
-@st.cache_data(ttl=300)   # refresh every 5 minutes
+@st.cache_data(ttl=300)
 def fetch_mnt_price():
-    # Source 1: CoinGecko (no key needed)
     try:
         r = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
@@ -42,8 +54,6 @@ def fetch_mnt_price():
         return price, "CoinGecko", datetime.now().strftime("%H:%M:%S")
     except Exception:
         pass
-
-    # Source 2: Bybit public API
     try:
         r = requests.get(
             "https://api.bybit.com/v5/market/tickers",
@@ -55,34 +65,51 @@ def fetch_mnt_price():
         return price, "Bybit", datetime.now().strftime("%H:%M:%S")
     except Exception:
         pass
-
     return MNT_FALLBACK, None, None
 
 MNT_PRICE_USD, mnt_source, mnt_fetched_at = fetch_mnt_price()
 
+# ── Country codes that are valid market identifiers ───────────────────────────
+COUNTRY_CODES = {"KR", "JP", "VN", "CN", "RU", "SEA", "TH", "ID", "PH",
+                 "US", "EU", "UK", "AU", "IN", "TR", "AR", "BR", "MX"}
+
 # ── Data loading ──────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    path = Path(__file__).parent / "Q2_2026_Spending_.xlsx"
+    path = Path(__file__).parent / "Q2 2026 Spending .xlsx"
     df = pd.read_excel(path, sheet_name="KOLs Spending")
 
-    # Parse dates
     df["Payment Date"] = pd.to_datetime(df["Payment Date"], errors="coerce")
     df["Due Date"]     = pd.to_datetime(df["Due Date"],     errors="coerce")
 
-    # Extract Region from Description  e.g. "(KR KOL) ..."
+    # Extract region from "(XX KOL) ..." — unknown / non-country-code → Global
     def extract_region(desc):
         if pd.isna(desc):
-            return "Unknown"
+            return "Global"
         m = re.match(r"\(([^)]+)\s+KOL\)", str(desc))
-        return m.group(1).strip() if m else "Unknown"
+        if not m:
+            return "Global"
+        code = m.group(1).strip().upper()
+        return code if code in COUNTRY_CODES else "Global"
 
     df["Region"] = df["Description"].apply(extract_region)
 
-    # Convert all amounts to USD
+    # Currency group: USD (USDC+USDT) vs MNT (all MNT variants)
+    def currency_group(cur):
+        if cur in ("USDC", "USDT"):
+            return "USD"
+        elif cur in ("MNT", "MNT - L2", "MNT (USD)"):
+            return "MNT"
+        return "USD"
+
+    df["CurrencyGroup"] = df["Currency"].apply(currency_group)
+
+    # Native amount (keep original number, no conversion)
+    df["Amount_Native"] = df["Total Amount"].astype(float)
+
+    # USD-equivalent amount (for charts)
     def to_usd(row):
-        amt = row["Total Amount"]
-        cur = row["Currency"]
+        amt, cur = row["Total Amount"], row["Currency"]
         if cur in ("USDC", "USDT", "MNT (USD)"):
             return float(amt)
         elif cur in ("MNT", "MNT - L2"):
@@ -91,7 +118,6 @@ def load_data():
 
     df["Amount_USD"] = df.apply(to_usd, axis=1)
 
-    # Time helpers
     df["Month"]    = df["Payment Date"].dt.to_period("M").astype(str)
     df["Month_dt"] = df["Payment Date"].dt.to_period("M").dt.to_timestamp()
     df["Quarter"]  = df["Payment Date"].dt.to_period("Q").astype(str)
@@ -105,62 +131,42 @@ df = load_data()
 with st.sidebar:
     st.title("🔍 Filters")
 
-    # Granularity
     granularity = st.radio("View by", ["Month", "Quarter"], horizontal=True)
 
-    # Time filter
-    all_months = sorted(df["Month"].dropna().unique())
+    all_months   = sorted(df["Month"].dropna().unique())
     all_quarters = sorted(df["Quarter"].dropna().unique())
 
     if granularity == "Month":
-        selected_periods = st.multiselect(
-            "Select Months", all_months, default=all_months,
-        )
+        selected_periods = st.multiselect("Select Months", all_months, default=all_months)
     else:
-        selected_periods = st.multiselect(
-            "Select Quarters", all_quarters, default=all_quarters,
-        )
+        selected_periods = st.multiselect("Select Quarters", all_quarters, default=all_quarters)
 
-    # Region filter
     all_regions = sorted(df["Region"].dropna().unique())
-    selected_regions = st.multiselect(
-        "Region / Market", all_regions, default=all_regions,
-    )
+    selected_regions = st.multiselect("Region / Market", all_regions, default=all_regions)
 
-    # Currency filter
     all_currencies = sorted(df["Currency"].dropna().unique())
-    selected_currencies = st.multiselect(
-        "Original Currency", all_currencies, default=all_currencies,
-    )
+    selected_currencies = st.multiselect("Original Currency", all_currencies, default=all_currencies)
 
-    # Status filter
     all_statuses = ["Paid", "Wait Review", "Unpaid / Pending"]
-    status_map   = {"Paid": "Paid", "Wait Review": "Wait Review"}
-    selected_statuses = st.multiselect(
-        "Payment Status", all_statuses, default=all_statuses,
-    )
+    selected_statuses = st.multiselect("Payment Status", all_statuses, default=all_statuses)
 
     st.markdown("---")
     if mnt_source:
-        st.success(f"**MNT/USD** ${MNT_PRICE_USD:.5f}  \n🟢 Live · {mnt_source} · {mnt_fetched_at}")
+        st.success(f"**MNT/USDT** `${MNT_PRICE_USD:.5f}`  \n🟢 Live · {mnt_source} · {mnt_fetched_at}")
     else:
-        st.warning(f"**MNT/USD** ${MNT_PRICE_USD:.5f}  \n🟡 Fallback — exchanges unreachable")
+        st.warning(f"**MNT/USDT** `${MNT_PRICE_USD:.5f}`  \n🟡 Fallback — exchanges unreachable")
     if st.button("🔄 Refresh MNT price"):
         st.cache_data.clear()
         st.rerun()
 
 # ── Apply filters ─────────────────────────────────────────────────────────────
 mask = pd.Series(True, index=df.index)
-
 if granularity == "Month":
     mask &= df["Month"].isin(selected_periods)
 else:
     mask &= df["Quarter"].isin(selected_periods)
-
 mask &= df["Region"].isin(selected_regions)
 mask &= df["Currency"].isin(selected_currencies)
-
-# Status filter: NaN rows = Unpaid/Pending
 if "Paid" not in selected_statuses:
     mask &= df["Status"] != "Paid"
 if "Wait Review" not in selected_statuses:
@@ -172,18 +178,39 @@ fdf = df[mask].copy()
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.title("📊 KOL Spending Dashboard")
-st.caption("Source: Q2_2026_Spending_.xlsx  ·  All amounts converted to USD")
+st.caption("Source: Q2 2026 Spending .xlsx")
 
 if fdf.empty:
     st.warning("No data matches the current filters.")
     st.stop()
 
-# ── KPI row ───────────────────────────────────────────────────────────────────
+# ── MNT price banner ──────────────────────────────────────────────────────────
+source_label = f"🟢 Live via {mnt_source}" if mnt_source else "🟡 Fallback price"
+st.markdown(f"""
+<div class="mnt-banner">
+  <div>
+    <div class="mnt-label">MNT / USDT</div>
+    <div class="mnt-price">1 MNT = ${MNT_PRICE_USD:.5f} USDT</div>
+  </div>
+  <div class="mnt-source">{source_label}{f" · updated {mnt_fetched_at}" if mnt_fetched_at else ""}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── KPI row: Total $ | Total MNT | Transactions | KOLs ───────────────────────
+usd_total = fdf[fdf["CurrencyGroup"] == "USD"]["Amount_Native"].sum()
+mnt_total = fdf[fdf["CurrencyGroup"] == "MNT"]["Amount_Native"].sum()
+mnt_in_usdt = mnt_total * MNT_PRICE_USD
+
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("Total Spend (USD)", f"${fdf['Amount_USD'].sum():,.0f}")
-k2.metric("# Transactions",    f"{len(fdf):,}")
-k3.metric("# KOLs",            f"{fdf['Vendor name'].nunique():,}")
-k4.metric("# Regions",         f"{fdf['Region'].nunique():,}")
+k1.metric("Total Spend (USD)", f"${usd_total:,.0f}", help="USDC + USDT")
+k2.metric(
+    "Total Spend (MNT)",
+    f"{mnt_total:,.0f} MNT",
+    f"≈ ${mnt_in_usdt:,.0f} USDT",
+    help="MNT · MNT-L2 · MNT(USD) — converted at live price",
+)
+k3.metric("# Transactions", f"{len(fdf):,}")
+k4.metric("# KOLs", f"{fdf['Vendor name'].nunique():,}")
 
 st.markdown("---")
 
@@ -191,25 +218,17 @@ st.markdown("---")
 c1, c2 = st.columns([3, 2])
 
 with c1:
-    st.subheader("💰 Spend Over Time")
-    group_col = "Month_dt" if granularity == "Month" else "Quarter"
-    label_col = "Month"    if granularity == "Month" else "Quarter"
-
+    st.subheader("💰 Spend Over Time (USD equiv.)")
     if granularity == "Month":
         trend = (
-            fdf.groupby("Month_dt")["Amount_USD"]
-            .sum()
-            .reset_index()
-            .sort_values("Month_dt")
+            fdf.groupby("Month_dt")["Amount_USD"].sum()
+            .reset_index().sort_values("Month_dt")
         )
-        trend["Label"] = trend["Month_dt"].dt.strftime("%b %Y")
-        x_col, x_label = "Month_dt", "Label"
+        x_col = "Month_dt"
     else:
         trend = (
-            fdf.groupby("Quarter")["Amount_USD"]
-            .sum()
-            .reset_index()
-            .sort_values("Quarter")
+            fdf.groupby("Quarter")["Amount_USD"].sum()
+            .reset_index().sort_values("Quarter")
         )
         x_col = "Quarter"
 
@@ -232,10 +251,8 @@ with c1:
 with c2:
     st.subheader("🌏 Spend by Region")
     region_df = (
-        fdf.groupby("Region")["Amount_USD"]
-        .sum()
-        .reset_index()
-        .sort_values("Amount_USD", ascending=False)
+        fdf.groupby("Region")["Amount_USD"].sum()
+        .reset_index().sort_values("Amount_USD", ascending=False)
     )
     fig_pie = px.pie(
         region_df, names="Region", values="Amount_USD",
@@ -250,27 +267,22 @@ with c2:
     )
     st.plotly_chart(fig_pie, use_container_width=True)
 
-# ── Row 2: Region × Time heatmap  |  Currency breakdown ──────────────────────
+# ── Row 2: Heatmap  |  Currency mix ──────────────────────────────────────────
 c3, c4 = st.columns([3, 2])
 
 with c3:
-    st.subheader("🗺️ Region × Month Heatmap")
+    st.subheader("🗺️ Region × Period Heatmap")
     pivot_col = "Month" if granularity == "Month" else "Quarter"
     pivot = (
-        fdf.groupby(["Region", pivot_col])["Amount_USD"]
-        .sum()
+        fdf.groupby(["Region", pivot_col])["Amount_USD"].sum()
         .reset_index()
         .pivot(index="Region", columns=pivot_col, values="Amount_USD")
         .fillna(0)
     )
-    # Sort columns chronologically
     pivot = pivot.reindex(sorted(pivot.columns), axis=1)
-
     fig_heat = px.imshow(
-        pivot,
-        text_auto=".2s",
-        color_continuous_scale="Blues",
-        aspect="auto",
+        pivot, text_auto=".2s",
+        color_continuous_scale="Blues", aspect="auto",
         labels=dict(color="USD"),
     )
     fig_heat.update_layout(
@@ -283,17 +295,14 @@ with c3:
 with c4:
     st.subheader("💱 Currency Mix")
     cur_df = (
-        fdf.groupby("Currency")["Amount_USD"]
-        .sum()
-        .reset_index()
-        .sort_values("Amount_USD", ascending=True)
+        fdf.groupby("Currency")["Amount_USD"].sum()
+        .reset_index().sort_values("Amount_USD", ascending=True)
     )
     fig_bar_cur = px.bar(
         cur_df, x="Amount_USD", y="Currency",
-        orientation="h",
-        text_auto=".2s",
+        orientation="h", text_auto=".2s",
         color_discrete_sequence=["#a78bfa"],
-        labels={"Amount_USD": "USD", "Currency": ""},
+        labels={"Amount_USD": "USD equiv.", "Currency": ""},
     )
     fig_bar_cur.update_layout(
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
@@ -302,21 +311,16 @@ with c4:
     )
     st.plotly_chart(fig_bar_cur, use_container_width=True)
 
-# ── Row 3: Stacked bar Region × Time ─────────────────────────────────────────
+# ── Row 3: Stacked bar ────────────────────────────────────────────────────────
 st.subheader("📈 Region Spend — Stacked by Period")
 pivot_col = "Month" if granularity == "Month" else "Quarter"
-
 stack_df = (
-    fdf.groupby(["Region", pivot_col])["Amount_USD"]
-    .sum()
-    .reset_index()
-    .sort_values(pivot_col)
+    fdf.groupby(["Region", pivot_col])["Amount_USD"].sum()
+    .reset_index().sort_values(pivot_col)
 )
-
 fig_stack = px.bar(
     stack_df, x=pivot_col, y="Amount_USD", color="Region",
-    barmode="stack",
-    text_auto=".2s",
+    barmode="stack", text_auto=".2s",
     color_discrete_sequence=px.colors.qualitative.Safe,
     labels={"Amount_USD": "USD", pivot_col: ""},
 )
@@ -328,25 +332,20 @@ fig_stack.update_layout(
 )
 st.plotly_chart(fig_stack, use_container_width=True)
 
-# ── Row 4: Top KOLs  |  Status breakdown ─────────────────────────────────────
+# ── Row 4: Top KOLs  |  Status ───────────────────────────────────────────────
 c5, c6 = st.columns([3, 2])
 
 with c5:
     st.subheader("🏆 Top 15 KOLs by Spend")
     top_kols = (
-        fdf.groupby("Vendor name")["Amount_USD"]
-        .sum()
-        .reset_index()
-        .sort_values("Amount_USD", ascending=False)
-        .head(15)
+        fdf.groupby("Vendor name")["Amount_USD"].sum()
+        .reset_index().sort_values("Amount_USD", ascending=False).head(15)
     )
     fig_kol = px.bar(
         top_kols.sort_values("Amount_USD"),
         x="Amount_USD", y="Vendor name",
-        orientation="h",
-        text_auto=".2s",
-        color="Amount_USD",
-        color_continuous_scale="Teal",
+        orientation="h", text_auto=".2s",
+        color="Amount_USD", color_continuous_scale="Teal",
         labels={"Amount_USD": "USD", "Vendor name": ""},
     )
     fig_kol.update_layout(
@@ -360,17 +359,12 @@ with c5:
 with c6:
     st.subheader("✅ Payment Status")
     status_display = fdf["Status"].fillna("Unpaid / Pending")
-    status_df = (
-        status_display.value_counts().reset_index()
-    )
+    status_df = status_display.value_counts().reset_index()
     status_df.columns = ["Status", "Count"]
-
     color_map = {"Paid": "#22c55e", "Wait Review": "#f59e0b", "Unpaid / Pending": "#ef4444"}
     fig_status = px.pie(
         status_df, names="Status", values="Count",
-        hole=0.5,
-        color="Status",
-        color_discrete_map=color_map,
+        hole=0.5, color="Status", color_discrete_map=color_map,
     )
     fig_status.update_traces(textposition="outside", textinfo="label+value")
     fig_status.update_layout(
@@ -380,18 +374,13 @@ with c6:
     )
     st.plotly_chart(fig_status, use_container_width=True)
 
-    # Amount by status
     status_amt = (
-        fdf.groupby(fdf["Status"].fillna("Unpaid / Pending"))["Amount_USD"]
-        .sum()
-        .reset_index()
+        fdf.groupby(fdf["Status"].fillna("Unpaid / Pending"))["Amount_USD"].sum().reset_index()
     )
     status_amt.columns = ["Status", "USD"]
     fig_status_amt = px.bar(
         status_amt, x="Status", y="USD",
-        text_auto=".2s",
-        color="Status",
-        color_discrete_map=color_map,
+        text_auto=".2s", color="Status", color_discrete_map=color_map,
         labels={"USD": "USD", "Status": ""},
     )
     fig_status_amt.update_layout(
@@ -406,18 +395,15 @@ with c6:
 with st.expander("📋 Raw Data Table", expanded=False):
     show_cols = [
         "S/N", "Vendor name", "Region", "Description",
-        "Currency", "Total Amount", "Amount_USD",
+        "Currency", "CurrencyGroup", "Total Amount", "Amount_USD",
         "Payment Date", "Status", "Assignee", "Bank/Safe",
     ]
     st.dataframe(
         fdf[show_cols].sort_values("Payment Date", ascending=False),
-        use_container_width=True,
-        height=400,
+        use_container_width=True, height=400,
     )
-
     csv = fdf[show_cols].to_csv(index=False).encode("utf-8")
     st.download_button(
         "⬇️ Download filtered CSV", csv,
-        file_name="kol_spending_filtered.csv",
-        mime="text/csv",
+        file_name="kol_spending_filtered.csv", mime="text/csv",
     )
