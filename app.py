@@ -412,30 +412,103 @@ total_row           = pivot_data.sum(axis=0)
 total_row.name      = "Total"
 pivot_with_total    = pd.concat([pivot_data, total_row.to_frame().T])
 
-fig_heat = px.imshow(
-    pivot_with_total, text_auto=".2s",
-    color_continuous_scale=["#F8FAFC","#C7E8D8","#6DBF9E","#2A9D6E","#1B4332"],
-    aspect="auto", labels=dict(color="USD"),
+# Split heatmap data: body (no Total) vs Total row/col rendered separately
+import plotly.graph_objects as go
+
+body_data  = pivot_data.drop(columns=["Total"])          # no Total col
+body_rows  = list(body_data.index)
+body_cols  = list(body_data.columns)
+total_col  = pivot_data["Total"].values                   # Total per region row
+total_row_vals = pivot_with_total.loc["Total"]            # Total per period + grand total
+
+# --- Main heatmap (body only, no Total row/col) ---
+fig_heat = go.Figure()
+fig_heat.add_trace(go.Heatmap(
+    z=body_data.values,
+    x=body_cols,
+    y=body_rows,
+    colorscale=[[0,"#F8FAFC"],[0.2,"#D4EEE2"],[0.5,"#6DBF9E"],[0.8,"#2A9D6E"],[1,"#1B4332"]],
+    showscale=False,
+    text=[[f"${v:,.0f}" if v >= 1000 else (f"${v:.0f}" if v > 0 else "—") for v in row] for row in body_data.values],
+    texttemplate="%{text}",
+    textfont=dict(color="#0B2618", size=11),
+    hovertemplate="%{y} · %{x}: $%{z:,.0f}<extra></extra>",
+    xgap=2, ygap=2,
+))
+
+# Total column annotation (right side of body, same rows)
+for i, (region, val) in enumerate(zip(body_rows, total_col)):
+    fig_heat.add_annotation(
+        x=1.01, y=i, xref="paper", yref="y",
+        text=f"<b>${val/1000:.1f}k</b>" if val >= 1000 else f"<b>${val:.0f}</b>",
+        showarrow=False, font=dict(size=11, color="#C0392B"),
+        xanchor="left", align="left",
+    )
+
+fig_heat.update_layout(
+    **CHART_BG, font=FONT,
+    margin=dict(l=0, r=80, t=30, b=60), height=320,
+    xaxis=dict(title="", side="bottom", tickfont=dict(size=11)),
+    yaxis=dict(title="", tickfont=dict(size=11), autorange="reversed"),
+    shapes=[
+        # Outer border around Total col annotation area
+        dict(type="rect", xref="paper", yref="paper",
+             x0=1.005, x1=1.08, y0=0, y1=1,
+             line=dict(color="#E76F51", width=1.5), fillcolor="rgba(231,111,81,0.05)"),
+    ],
+    annotations=[
+        dict(x=1.04, y=1.04, xref="paper", yref="paper",
+             text="<b>Total</b>", showarrow=False,
+             font=dict(size=11, color="#C0392B"), xanchor="center"),
+    ] + [
+        dict(x=1.01, y=i, xref="paper", yref="y",
+             text=f"<b>${v/1000:.1f}k</b>" if v >= 1000 else f"<b>${v:.0f}</b>",
+             showarrow=False, font=dict(size=11, color="#C0392B"),
+             xanchor="left", align="left")
+        for i, v in enumerate(total_col)
+    ],
 )
-# Highlight Total col (last col) and Total row (last row) with orange border shapes
-n_rows = len(pivot_with_total)
-n_cols = len(pivot_with_total.columns)
-shapes = []
-# Total column highlight (vertical band)
-shapes.append(dict(type="rect", xref="x", yref="y",
-    x0=n_cols-1-0.5, x1=n_cols-1+0.5, y0=-0.5, y1=n_rows-1+0.5,
-    line=dict(color="#E76F51", width=2.5), fillcolor="rgba(231,111,81,0.07)"))
-# Total row highlight (horizontal band)
-shapes.append(dict(type="rect", xref="x", yref="y",
-    x0=-0.5, x1=n_cols-1+0.5, y0=n_rows-1-0.5, y1=n_rows-1+0.5,
-    line=dict(color="#E76F51", width=2.5), fillcolor="rgba(231,111,81,0.07)"))
-fig_heat.update_layout(**CHART_BG, font=FONT,
-                       margin=dict(l=0,r=0,t=10,b=0), height=320,
-                       coloraxis_colorbar=dict(tickprefix="$", tickformat=",.0f"),
-                       xaxis_title="", yaxis_title="",
-                       shapes=shapes)
-fig_heat.update_traces(textfont=dict(color="#0B2618", size=11))
+# Remove duplicate annotations added above
+fig_heat.layout.annotations = fig_heat.layout.annotations[1:]  # keep only the header + values
+
 st.plotly_chart(fig_heat, use_container_width=True)
+
+# --- Total row as a separate styled table below heatmap ---
+period_cols = body_cols
+total_vals  = [total_row_vals[c] for c in period_cols]
+grand_total = total_row_vals["Total"]
+
+total_row_html = "".join([
+    f'<td style="text-align:center;padding:6px 12px;background:#FEF0ED;border:1px solid #E76F51;font-weight:700;color:#C0392B;font-size:12px">${v/1000:.1f}k</td>'
+    for v in total_vals
+])
+grand_html = f'<td style="text-align:center;padding:6px 12px;background:#E76F51;border:1px solid #C0392B;font-weight:800;color:#fff;font-size:12px">${grand_total/1000:.1f}k</td>'
+
+period_headers = "".join([
+    f'<th style="text-align:center;padding:4px 12px;color:#4A7A5A;font-size:11px;font-weight:600">{c}</th>'
+    for c in period_cols
+])
+
+st.markdown(f"""
+<div style="overflow-x:auto;margin-top:-8px">
+  <table style="width:100%;border-collapse:collapse;font-family:sans-serif">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:4px 12px;color:#4A7A5A;font-size:11px;min-width:80px"></th>
+        {period_headers}
+        <th style="text-align:center;padding:4px 12px;color:#C0392B;font-size:11px;font-weight:700">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="font-weight:700;color:#C0392B;font-size:12px;padding:6px 12px;background:#FEF0ED;border:1px solid #E76F51">Total</td>
+        {total_row_html}
+        {grand_html}
+      </tr>
+    </tbody>
+  </table>
+</div>
+""", unsafe_allow_html=True)
 
 # ── Stacked bar ───────────────────────────────────────────────────────────────
 st.markdown('<div class="section-header">Region Contribution by Period</div>', unsafe_allow_html=True)
