@@ -467,7 +467,7 @@ fig_heat.add_trace(go.Heatmap(
     colorscale=[[0,"#F8FAFC"],[0.2,"#D4EEE2"],[0.5,"#6DBF9E"],[0.8,"#2A9D6E"],[1,"#1B4332"]],
     showscale=False,
     text=body_text, texttemplate="%{text}",
-    textfont=dict(color="#0B2618", size=11),
+    textfont=dict(color="#0B2618", size=13),
     xgap=2, ygap=2,
     hovertemplate="%{y} · %{x}: %{text}<extra></extra>",
 ))
@@ -478,7 +478,7 @@ fig_heat.add_trace(go.Heatmap(
     colorscale=[[0,"#E8EDF0"],[1,"#CBD5DC"]],
     showscale=False,
     text=total_text, texttemplate="<b>%{text}</b>",
-    textfont=dict(color="#C0392B", size=11),
+    textfont=dict(color="#C0392B", size=13),
     xgap=2, ygap=2,
     hovertemplate="%{y} · %{x}: %{text}<extra></extra>",
 ))
