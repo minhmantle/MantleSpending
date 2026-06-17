@@ -216,10 +216,10 @@ def load_data():
     try:
         r = requests.get(url, timeout=15)
         r.raise_for_status()
-        df = pd.read_excel(_io.BytesIO(r.content), sheet_name="KOLs Spending")
+        df = pd.read_excel(_io.BytesIO(r.content), sheet_name="KOLs 2026")
     except Exception:
-        path = Path(__file__).parent / "Q2_2026_Spending_.xlsx"
-        df = pd.read_excel(path, sheet_name="KOLs Spending")
+        path = Path(__file__).parent / "KOLs_Spending.xlsx"
+        df = pd.read_excel(path, sheet_name="KOLs 2026")
 
     df["Payment Date"] = pd.to_datetime(df["Payment Date"], errors="coerce")
     df["Due Date"]     = pd.to_datetime(df["Due Date"],     errors="coerce")
@@ -232,6 +232,10 @@ def load_data():
         return code if code in COUNTRY_CODES else "Global"
 
     df["Region"] = df["Description"].apply(extract_region)
+    if "KOLs Type" in df.columns:
+        df["KOLs Type"] = df["KOLs Type"].fillna("Other")
+    else:
+        df["KOLs Type"] = "Other"
     df["CurrencyGroup"] = df["Currency"].apply(lambda c: "MNT" if "MNT" in str(c) else "USD")
     df["Amount_Native"] = df["Total Amount"].astype(float)
 
@@ -552,21 +556,24 @@ fig_heat.update_layout(
 )
 st.plotly_chart(fig_heat, use_container_width=True)
 
-# ── Stacked bar ───────────────────────────────────────────────────────────────
-st.markdown('<div class="section-header">Region Contribution by Period</div>', unsafe_allow_html=True)
+# ── Spend by KOLs Type x Period ──────────────────────────────────────────────
+st.markdown('<div class="section-header">Spend by KOLs Type by Period</div>', unsafe_allow_html=True)
+
+fdf["KOLs Type"] = fdf["KOLs Type"].fillna("Other") if "KOLs Type" in fdf.columns else "Other"
+
 if granularity == "Month":
-    stack_df = fdf.groupby(["Region","Month","Month_dt"])["Amount_USD"].sum().reset_index().sort_values("Month_dt")
-    fig_stack = px.bar(stack_df, x="Month", y="Amount_USD", color="Region",
+    stack_df = fdf.groupby(["KOLs Type","Month","Month_dt"])["Amount_USD"].sum().reset_index().sort_values("Month_dt")
+    fig_stack = px.bar(stack_df, x="Month", y="Amount_USD", color="KOLs Type",
                        barmode="stack", text_auto=".2s",
                        color_discrete_sequence=STACK_COLORS,
-                       labels={"Amount_USD":"USD","Month":""},
+                       labels={"Amount_USD":"USD","Month":"","KOLs Type":"Type"},
                        category_orders={"Month": month_order})
 else:
-    stack_df = fdf.groupby(["Region","Quarter"])["Amount_USD"].sum().reset_index().sort_values("Quarter")
-    fig_stack = px.bar(stack_df, x="Quarter", y="Amount_USD", color="Region",
+    stack_df = fdf.groupby(["KOLs Type","Quarter"])["Amount_USD"].sum().reset_index().sort_values("Quarter")
+    fig_stack = px.bar(stack_df, x="Quarter", y="Amount_USD", color="KOLs Type",
                        barmode="stack", text_auto=".2s",
                        color_discrete_sequence=STACK_COLORS,
-                       labels={"Amount_USD":"USD","Quarter":""})
+                       labels={"Amount_USD":"USD","Quarter":"","KOLs Type":"Type"})
 fig_stack.update_layout(**CHART_BG, font=FONT,
                         margin=dict(l=0,r=0,t=10,b=0), height=340,
                         yaxis_tickprefix="$", yaxis_tickformat=",.0f",
