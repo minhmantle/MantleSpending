@@ -145,9 +145,17 @@ COUNTRY_CODES = {"KR", "JP", "VN", "CN", "RU", "SEA", "TH", "ID", "PH",
                  "US", "EU", "UK", "AU", "IN", "TR", "AR", "BR", "MX"}
 SHEET_ID = "1XFgqvNBBjM4G5x1uIInVLE0ssRYx4YAcGS7AduYBiWg"
 
-# ── Mantle chart colors ───────────────────────────────────────────────────────
-MANTLE_SEQ   = ["#3DFFA0", "#2ECC7A", "#1A9955", "#0B6635", "#3DFFA0", "#7AFFCC", "#B0FFE0"]
-MANTLE_MULTI = ["#3DFFA0","#2ECC7A","#1A9955","#0B6635","#7AFFCC","#00CC88","#004422","#B0FFE0"]
+# ── Chart colors — readable multi-tone, Mantle green as accent only ──────────
+# Spend Over Time bar: muted teal-green
+BAR_COLOR    = "#2A9D6E"
+# Donut / pie: distinct readable palette
+MULTI_COLORS = ["#2A9D6E","#E76F51","#264653","#E9C46A","#457B9D","#A8DADC","#F4A261"]
+# Stacked bar: same distinct palette
+STACK_COLORS = ["#264653","#2A9D6E","#E9C46A","#E76F51","#457B9D","#A8DADC","#F4A261","#6A4C93"]
+# Top KOL bar gradient: slate → teal
+KOL_SCALE    = ["#A8DADC","#457B9D","#2A9D6E","#1B4332"]
+# Payment status
+STATUS_COLORS = {"Paid": "#2A9D6E", "Wait Review": "#E9C46A", "Unpaid / Pending": "#E76F51"}
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 @st.cache_data(ttl=300)
@@ -354,15 +362,15 @@ with c1:
     if granularity == "Month":
         trend = fdf.groupby(["Month_dt","Month"])["Amount_USD"].sum().reset_index().sort_values("Month_dt")
         fig_line = px.bar(trend, x="Month", y="Amount_USD", text_auto=".2s",
-                          color_discrete_sequence=["#3DFFA0"],
+                          color_discrete_sequence=[BAR_COLOR],
                           labels={"Amount_USD":"USD","Month":""},
                           category_orders={"Month": month_order})
     else:
         trend = fdf.groupby("Quarter")["Amount_USD"].sum().reset_index().sort_values("Quarter")
         fig_line = px.bar(trend, x="Quarter", y="Amount_USD", text_auto=".2s",
-                          color_discrete_sequence=["#3DFFA0"],
+                          color_discrete_sequence=[BAR_COLOR],
                           labels={"Amount_USD":"USD","Quarter":""})
-    fig_line.update_traces(textposition="outside", textfont_color="#0B2618")
+    fig_line.update_traces(textposition="outside", textfont_color="#0B2618", marker_line_color="white", marker_line_width=1)
     fig_line.update_layout(**CHART_BG, font=FONT, margin=dict(l=0,r=0,t=10,b=0), height=300,
                            yaxis_tickprefix="$", yaxis_tickformat=",.0f",
                            yaxis=dict(gridcolor="#D4E6DA"), xaxis=dict(gridcolor="#D4E6DA"))
@@ -372,7 +380,7 @@ with c2:
     st.markdown("**Spend by Region**")
     region_df = fdf.groupby("Region")["Amount_USD"].sum().reset_index().sort_values("Amount_USD", ascending=False)
     fig_pie = px.pie(region_df, names="Region", values="Amount_USD", hole=0.45,
-                     color_discrete_sequence=MANTLE_MULTI)
+                     color_discrete_sequence=MULTI_COLORS)
     fig_pie.update_traces(textposition="outside", textinfo="label+percent",
                           textfont=dict(color="#0B2618"))
     fig_pie.update_layout(**CHART_BG, font=FONT, showlegend=False,
@@ -403,13 +411,27 @@ pivot_with_total    = pd.concat([pivot_data, total_row.to_frame().T])
 
 fig_heat = px.imshow(
     pivot_with_total, text_auto=".2s",
-    color_continuous_scale=["#F5F7F2","#7AFFCC","#3DFFA0","#1A9955","#0B2618"],
+    color_continuous_scale=["#F8FAFC","#C7E8D8","#6DBF9E","#2A9D6E","#1B4332"],
     aspect="auto", labels=dict(color="USD"),
 )
+# Highlight Total col (last col) and Total row (last row) with orange border shapes
+n_rows = len(pivot_with_total)
+n_cols = len(pivot_with_total.columns)
+shapes = []
+# Total column highlight (vertical band)
+shapes.append(dict(type="rect", xref="x", yref="y",
+    x0=n_cols-1-0.5, x1=n_cols-1+0.5, y0=-0.5, y1=n_rows-1+0.5,
+    line=dict(color="#E76F51", width=2.5), fillcolor="rgba(231,111,81,0.07)"))
+# Total row highlight (horizontal band)
+shapes.append(dict(type="rect", xref="x", yref="y",
+    x0=-0.5, x1=n_cols-1+0.5, y0=n_rows-1-0.5, y1=n_rows-1+0.5,
+    line=dict(color="#E76F51", width=2.5), fillcolor="rgba(231,111,81,0.07)"))
 fig_heat.update_layout(**CHART_BG, font=FONT,
                        margin=dict(l=0,r=0,t=10,b=0), height=320,
                        coloraxis_colorbar=dict(tickprefix="$", tickformat=",.0f"),
-                       xaxis_title="", yaxis_title="")
+                       xaxis_title="", yaxis_title="",
+                       shapes=shapes)
+fig_heat.update_traces(textfont=dict(color="#0B2618", size=11))
 st.plotly_chart(fig_heat, use_container_width=True)
 
 # ── Stacked bar ───────────────────────────────────────────────────────────────
@@ -418,14 +440,14 @@ if granularity == "Month":
     stack_df = fdf.groupby(["Region","Month","Month_dt"])["Amount_USD"].sum().reset_index().sort_values("Month_dt")
     fig_stack = px.bar(stack_df, x="Month", y="Amount_USD", color="Region",
                        barmode="stack", text_auto=".2s",
-                       color_discrete_sequence=MANTLE_MULTI,
+                       color_discrete_sequence=STACK_COLORS,
                        labels={"Amount_USD":"USD","Month":""},
                        category_orders={"Month": month_order})
 else:
     stack_df = fdf.groupby(["Region","Quarter"])["Amount_USD"].sum().reset_index().sort_values("Quarter")
     fig_stack = px.bar(stack_df, x="Quarter", y="Amount_USD", color="Region",
                        barmode="stack", text_auto=".2s",
-                       color_discrete_sequence=MANTLE_MULTI,
+                       color_discrete_sequence=STACK_COLORS,
                        labels={"Amount_USD":"USD","Quarter":""})
 fig_stack.update_layout(**CHART_BG, font=FONT,
                         margin=dict(l=0,r=0,t=10,b=0), height=340,
@@ -445,7 +467,7 @@ with c5:
     fig_kol = px.bar(top_kols.sort_values("Amount_USD"),
                      x="Amount_USD", y="Vendor name", orientation="h", text_auto=".2s",
                      color="Amount_USD",
-                     color_continuous_scale=["#7AFFCC","#3DFFA0","#1A9955","#0B2618"],
+                     color_continuous_scale=KOL_SCALE,
                      labels={"Amount_USD":"USD","Vendor name":""})
     fig_kol.update_layout(**CHART_BG, font=FONT,
                           margin=dict(l=0,r=0,t=10,b=0), height=420,
@@ -459,7 +481,7 @@ with c6:
     status_display = fdf["Status"].fillna("Unpaid / Pending")
     status_df = status_display.value_counts().reset_index()
     status_df.columns = ["Status", "Count"]
-    color_map = {"Paid": "#3DFFA0", "Wait Review": "#F5A623", "Unpaid / Pending": "#E05A5A"}
+    color_map = STATUS_COLORS
     fig_status = px.pie(
         status_df, names="Status", values="Count",
         hole=0.52, color="Status", color_discrete_map=color_map,
