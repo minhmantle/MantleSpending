@@ -76,7 +76,7 @@ COUNTRY_CODES = {"KR", "JP", "VN", "CN", "RU", "SEA", "TH", "ID", "PH",
 # ── Data loading ──────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    path = Path(__file__).parent / "Q2 2026 Spending .xlsx"
+    path = Path(__file__).parent / "Q2_2026_Spending_.xlsx"
     df = pd.read_excel(path, sheet_name="KOLs Spending")
 
     df["Payment Date"] = pd.to_datetime(df["Payment Date"], errors="coerce")
