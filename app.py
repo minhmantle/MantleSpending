@@ -555,14 +555,17 @@ with c6:
         hole=0.52, color="Status", color_discrete_map=color_map,
     )
     fig_status.update_traces(
-        textposition="outside",
-        textinfo="label+percent+value",
-        textfont=dict(color="#0B2618"),
+        textposition="inside",
+        textinfo="label+percent",
+        textfont=dict(color="#ffffff", size=13),
+        insidetextorientation="radial",
     )
     fig_status.update_layout(**CHART_BG, font=FONT,
                              showlegend=True,
-                             legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5),
-                             margin=dict(l=10,r=10,t=10,b=10), height=380)
+                             legend=dict(orientation="h", yanchor="top", y=-0.08,
+                                         xanchor="center", x=0.5,
+                                         font=dict(size=12, color="#0B2618")),
+                             margin=dict(l=10,r=10,t=10,b=60), height=380)
     st.plotly_chart(fig_status, use_container_width=True)
 
 # ── Raw data table ────────────────────────────────────────────────────────────
