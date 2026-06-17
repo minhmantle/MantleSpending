@@ -24,9 +24,14 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+  /* Hide Streamlit top bar / hamburger */
+  #MainMenu { visibility: hidden; }
+  header[data-testid="stHeader"] { background: transparent; height: 0; }
+  footer { visibility: hidden; }
+
   /* Global */
   .stApp { background-color: #F5F7F2; }
-  .block-container { padding-top: 1rem; max-width: 1400px; }
+  .block-container { padding-top: 2.5rem; max-width: 1400px; }
   h1, h2, h3 { color: #0B2618 !important; }
   h1 { font-size: 1.7rem !important; margin-bottom: 0 !important; font-weight: 800 !important; }
   h3 { font-size: 1.05rem !important; margin-bottom: 8px !important; }
