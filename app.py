@@ -87,10 +87,20 @@ COUNTRY_CODES = {"KR", "JP", "VN", "CN", "RU", "SEA", "TH", "ID", "PH",
                  "US", "EU", "UK", "AU", "IN", "TR", "AR", "BR", "MX"}
 
 # ── Data loading ──────────────────────────────────────────────────────────────
-@st.cache_data
+SHEET_ID = "1XFgqvNBBjM4G5x1uIInVLE0ssRYx4YAcGS7AduYBiWg"
+
+@st.cache_data(ttl=300)  # re-fetch every 5 min — auto-reflects edits in Google Sheets
 def load_data():
-    path = Path(__file__).parent / "Q2_2026_Spending_.xlsx"
-    df = pd.read_excel(path, sheet_name="KOLs Spending")
+    import io as _io
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=xlsx"
+    try:
+        r = requests.get(url, timeout=15)
+        r.raise_for_status()
+        df = pd.read_excel(_io.BytesIO(r.content), sheet_name="KOLs Spending")
+    except Exception:
+        # Fallback to local file if Google Sheets unreachable
+        path = Path(__file__).parent / "Q2_2026_Spending_.xlsx"
+        df = pd.read_excel(path, sheet_name="KOLs Spending")
     df["Payment Date"] = pd.to_datetime(df["Payment Date"], errors="coerce")
     df["Due Date"]     = pd.to_datetime(df["Due Date"],     errors="coerce")
 
