@@ -285,11 +285,12 @@ if fdf.empty:
     st.stop()
 
 # ── KPI row ───────────────────────────────────────────────────────────────────
-usdt_total = fdf[fdf["Currency"] == "USDT"]["Amount_Native"].sum()
-usdc_total = fdf[fdf["Currency"] == "USDC"]["Amount_Native"].sum()
-mnt_native = fdf[fdf["CurrencyGroup"] == "MNT"]["Amount_Native"].sum()
-mnt_in_usd = mnt_native * MNT_PRICE_USD
-total_usd  = usdt_total + usdc_total + mnt_in_usd
+usdt_total  = fdf[fdf["Currency"] == "USDT"]["Amount_Native"].sum()
+usdc_total  = fdf[fdf["Currency"] == "USDC"]["Amount_Native"].sum()
+mnt_usd_total = fdf[fdf["Currency"] == "MNT (USD)"]["Amount_Native"].sum()  # already USD
+mnt_native  = fdf[fdf["Currency"].isin(["MNT", "MNT - L2"])]["Amount_Native"].sum()
+mnt_in_usd  = mnt_native * MNT_PRICE_USD
+total_usd   = fdf["Amount_USD"].sum()  # single source of truth = same as heatmap
 
 col_total, col_tx, col_kol, col_reg = st.columns([2, 1, 1, 1])
 
@@ -308,7 +309,7 @@ with col_total:
           <div class="cur-val">${usdc_total:,.0f}</div>
         </div>
         <div class="cur-card">
-          <div class="cur-label">MNT (all)</div>
+          <div class="cur-label">MNT (token)</div>
           <div class="cur-val">{mnt_native:,.0f}</div>
           <div class="cur-sub">≈ ${mnt_in_usd:,.0f} USD</div>
         </div>
