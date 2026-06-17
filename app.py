@@ -382,9 +382,12 @@ with c2:
     fig_pie = px.pie(region_df, names="Region", values="Amount_USD", hole=0.45,
                      color_discrete_sequence=MULTI_COLORS)
     fig_pie.update_traces(textposition="outside", textinfo="label+percent",
-                          textfont=dict(color="#0B2618"))
-    fig_pie.update_layout(**CHART_BG, font=FONT, showlegend=False,
-                          margin=dict(l=0,r=0,t=10,b=0), height=300)
+                          textfont=dict(color="#0B2618", size=12),
+                          outsidetextfont=dict(color="#0B2618", size=12))
+    fig_pie.update_layout(**CHART_BG, font=FONT, showlegend=True,
+                          legend=dict(orientation="v", x=1.02, y=0.5,
+                                      font=dict(size=11, color="#0B2618")),
+                          margin=dict(l=40,r=120,t=30,b=30), height=340)
     st.plotly_chart(fig_pie, use_container_width=True)
 
 # ── Heatmap with row/col totals ───────────────────────────────────────────────
