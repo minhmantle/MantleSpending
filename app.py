@@ -578,7 +578,12 @@ fig_stack.update_layout(**CHART_BG, font=FONT,
                         margin=dict(l=0,r=0,t=10,b=0), height=340,
                         yaxis_tickprefix="$", yaxis_tickformat=",.0f",
                         yaxis=dict(gridcolor="#D4E6DA"),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        hovermode="x unified",
+                        hoverlabel=dict(bgcolor="#0B2618", font_color="#F5F7F2", font_size=12))
+fig_stack.update_traces(
+    hovertemplate="<b>%{fullData.name}</b>: $%{y:,.0f}",
+)
 st.plotly_chart(fig_stack, use_container_width=True)
 
 # ── Top KOLs | Payment Status ────────────────────────────────────────────────
