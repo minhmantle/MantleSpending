@@ -49,10 +49,10 @@ st.markdown("""
 
   /* Info pill — MNT price */
   .pill {
-    display: inline-flex; align-items: center; gap: 8px;
+    display: flex; align-items: flex-start; flex-direction: column; gap: 2px;
     background: #FFFFFF; border: 1.5px solid #3DFFA0; border-radius: 10px;
-    padding: 7px 14px; font-size: 12px; color: #0B2618; white-space: nowrap;
-    box-shadow: 0 1px 4px rgba(11,38,24,0.08);
+    padding: 7px 14px; font-size: 12px; color: #0B2618;
+    box-shadow: 0 1px 4px rgba(11,38,24,0.08); width: 100%; box-sizing: border-box;
   }
   .pill .pill-label { color: #4A7A5A; font-size: 11px; }
   .pill .pill-val   { color: #0B2618; font-size: 15px; font-weight: 800; }
@@ -236,7 +236,7 @@ src_txt = f"{mnt_source} · {mnt_fetched_at}" if mnt_source else "Fallback price
 
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height:44px;margin-right:12px;vertical-align:middle">' if logo_b64 else ""
 
-col_title, col_mnt, col_info = st.columns([3, 1.2, 1.8])
+col_title, col_mnt, col_info = st.columns([2.5, 1.8, 2.2])
 
 with col_title:
     st.markdown(f"""
@@ -254,7 +254,7 @@ with col_mnt:
     <div style="padding-top:8px">
       <div class="pill">
         <span class="pill-label">MNT / USDT &nbsp;{dot}</span>
-        <span class="pill-val">1 MNT = ${MNT_PRICE_USD:.4f}</span>
+        <span class="pill-val">1 MNT = ${MNT_PRICE_USD:.4f} USDT</span>
         <span class="pill-src">{src_txt}</span>
       </div>
     </div>
