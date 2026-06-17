@@ -510,18 +510,35 @@ def fmt(v):
     if v >= 1000: return f"${v/1000:.1f}k"
     return f"${v:.0f}"
 
+body_max_val = max(v for row in body_z for v in row if v is not None) or 1
+THRESHOLD    = 0.55
+
 body_text  = [[fmt(pivot_with_total.iloc[r,c]) if body_z[r][c] is not None else "" for c in range(n_cols)] for r in range(n_rows)]
 total_text = [[fmt(pivot_with_total.iloc[r,c]) if total_z[r][c] is not None else "" for c in range(n_cols)] for r in range(n_rows)]
 
+# Split body into light cells (dark text) and dark cells (white text)
+body_z_light = [[v if (v is not None and v / body_max_val <= THRESHOLD) else None for v in row] for row in body_z]
+body_z_dark  = [[v if (v is not None and v / body_max_val >  THRESHOLD) else None for v in row] for row in body_z]
+
 fig_heat = go.Figure()
 
-# Trace 1: body heatmap (gradient)
+# Trace 1a: light cells — dark text
 fig_heat.add_trace(go.Heatmap(
-    z=body_z, x=cols, y=rows,
+    z=body_z_light, x=cols, y=rows,
     colorscale=[[0,"#F8FAFC"],[0.2,"#D4EEE2"],[0.5,"#6DBF9E"],[0.8,"#2A9D6E"],[1,"#1B4332"]],
-    showscale=False,
+    zmin=0, zmax=body_max_val, showscale=False,
     text=body_text, texttemplate="%{text}",
     textfont=dict(color="#0B2618", size=13),
+    xgap=2, ygap=2,
+    hovertemplate="%{y} · %{x}: %{text}<extra></extra>",
+))
+# Trace 1b: dark cells — white text
+fig_heat.add_trace(go.Heatmap(
+    z=body_z_dark, x=cols, y=rows,
+    colorscale=[[0,"#F8FAFC"],[0.2,"#D4EEE2"],[0.5,"#6DBF9E"],[0.8,"#2A9D6E"],[1,"#1B4332"]],
+    zmin=0, zmax=body_max_val, showscale=False,
+    text=body_text, texttemplate="%{text}",
+    textfont=dict(color="#ffffff", size=13),
     xgap=2, ygap=2,
     hovertemplate="%{y} · %{x}: %{text}<extra></extra>",
 ))
