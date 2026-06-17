@@ -237,8 +237,8 @@ def load_data():
 
     def to_usd(row):
         amt, cur = row["Total Amount"], row["Currency"]
-        if cur in ("USDC", "USDT", "MNT (USD)"): return float(amt)
-        elif cur in ("MNT", "MNT - L2"):          return float(amt) * MNT_PRICE_USD
+        if cur in ("USDC", "USDT"):                        return float(amt)
+        elif cur in ("MNT", "MNT - L2", "MNT (USD)"):     return float(amt) * MNT_PRICE_USD
         return float(amt)
 
     df["Amount_USD"] = df.apply(to_usd, axis=1)
@@ -338,8 +338,7 @@ if fdf.empty:
 # ── KPI row ───────────────────────────────────────────────────────────────────
 usdt_total  = fdf[fdf["Currency"] == "USDT"]["Amount_Native"].sum()
 usdc_total  = fdf[fdf["Currency"] == "USDC"]["Amount_Native"].sum()
-mnt_usd_total = fdf[fdf["Currency"] == "MNT (USD)"]["Amount_Native"].sum()  # already USD
-mnt_native  = fdf[fdf["Currency"].isin(["MNT", "MNT - L2"])]["Amount_Native"].sum()
+mnt_native  = fdf[fdf["Currency"].isin(["MNT", "MNT - L2", "MNT (USD)"])]["Amount_Native"].sum()
 mnt_in_usd  = mnt_native * MNT_PRICE_USD
 total_usd   = fdf["Amount_USD"].sum()  # single source of truth = same as heatmap
 
