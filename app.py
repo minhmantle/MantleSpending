@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import re
+import requests
+from datetime import datetime
 from pathlib import Path
 
 # ── Page config ──────────────────────────────────────────────────────────────
@@ -23,8 +25,40 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── MNT price (USD equivalent) ────────────────────────────────────────────────
-MNT_PRICE_USD = 0.025   # approximate — update as needed
+# ── MNT live price via CoinGecko (cache 5 min) ───────────────────────────────
+MNT_FALLBACK = 0.025
+
+@st.cache_data(ttl=300)   # refresh every 5 minutes
+def fetch_mnt_price():
+    # Source 1: CoinGecko (no key needed)
+    try:
+        r = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": "mantle", "vs_currencies": "usd"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        price = float(r.json()["mantle"]["usd"])
+        return price, "CoinGecko", datetime.now().strftime("%H:%M:%S")
+    except Exception:
+        pass
+
+    # Source 2: Bybit public API
+    try:
+        r = requests.get(
+            "https://api.bybit.com/v5/market/tickers",
+            params={"category": "spot", "symbol": "MNTUSDT"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        price = float(r.json()["result"]["list"][0]["lastPrice"])
+        return price, "Bybit", datetime.now().strftime("%H:%M:%S")
+    except Exception:
+        pass
+
+    return MNT_FALLBACK, None, None
+
+MNT_PRICE_USD, mnt_source, mnt_fetched_at = fetch_mnt_price()
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 @st.cache_data
@@ -107,7 +141,13 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.caption(f"MNT price used: **${MNT_PRICE_USD}**")
+    if mnt_source:
+        st.success(f"**MNT/USD** ${MNT_PRICE_USD:.5f}  \n🟢 Live · {mnt_source} · {mnt_fetched_at}")
+    else:
+        st.warning(f"**MNT/USD** ${MNT_PRICE_USD:.5f}  \n🟡 Fallback — exchanges unreachable")
+    if st.button("🔄 Refresh MNT price"):
+        st.cache_data.clear()
+        st.rerun()
 
 # ── Apply filters ─────────────────────────────────────────────────────────────
 mask = pd.Series(True, index=df.index)
