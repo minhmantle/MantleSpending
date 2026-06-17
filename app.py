@@ -46,6 +46,57 @@ st.markdown("""
     background: #3DFFA0; color: #0B2618; border: none;
     font-weight: 700; border-radius: 8px; width: 100%;
   }
+  /* Multiselect tags — teal on dark, easy to read */
+  [data-testid="stSidebar"] span[data-baseweb="tag"] {
+    background-color: #1A4A2E !important;
+    border: 1px solid #3DFFA0 !important;
+    border-radius: 6px !important;
+    padding: 2px 8px !important;
+  }
+  [data-testid="stSidebar"] span[data-baseweb="tag"] span {
+    color: #D4F5E5 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+  /* X button inside tag — always visible */
+  [data-testid="stSidebar"] span[data-baseweb="tag"] button {
+    color: #3DFFA0 !important;
+    background: rgba(61,255,160,0.15) !important;
+    border-radius: 50% !important;
+    width: 16px !important; height: 16px !important;
+    display: inline-flex !important;
+    align-items: center !important; justify-content: center !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  [data-testid="stSidebar"] span[data-baseweb="tag"] button:hover {
+    color: #0B2618 !important;
+    background: #3DFFA0 !important;
+  }
+  /* Force SVG icon inside X button visible */
+  [data-testid="stSidebar"] span[data-baseweb="tag"] button svg {
+    fill: #3DFFA0 !important;
+    opacity: 1 !important;
+  }
+  [data-testid="stSidebar"] span[data-baseweb="tag"] button:hover svg {
+    fill: #0B2618 !important;
+  }
+  /* Multiselect input box */
+  [data-testid="stSidebar"] [data-baseweb="select"] > div {
+    background-color: #16312A !important;
+    border-color: #2A6040 !important;
+  }
+  /* MNT price text fix — force visible */
+  [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    color: #D4F5E5 !important;
+  }
+  [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] code {
+    background: #1A4A2E !important;
+    color: #3DFFA0 !important;
+    border: 1px solid #2A6040 !important;
+    padding: 1px 6px !important;
+    border-radius: 4px !important;
+  }
 
   /* Info pill — MNT price */
   .pill {
